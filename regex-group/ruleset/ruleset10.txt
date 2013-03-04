@@ -1,0 +1,10 @@
+body=\x2521\x2521\x2521Optix\s+Pro\s+v\d+\x252E\d+\S+sErver\s+Online\x2521\x2521\x2521
+\/cgi-bin\/PopupV\d+
+^Cookie\x3A[^\r\n]*origin\x3Dsidefind
+^Deleting[^\r\n]*ATTENTION\x3A
+^FILESIZE\x3E[^\r\n]*\x3E\d+
+\x2Fsearchfast\x2F\d+\x2Fcommunicatortb\d+\.cfg
+\x2Ftoolbar\x2Fico\x2F[a-zA-Z0-9_%]*\.ico
+\x2F(word|news|weather|joke|tip)\x2Easpx\?
+^Host\x3A[^\r\n]*adblock\x2Elinkz\x2Ecom
+^Host\x3A[^\r\n]*adserver\.warezclient\.com.*User-Agent\x3A[^\r\n]*Indy\s+Library

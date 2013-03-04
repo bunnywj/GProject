@@ -1,0 +1,4 @@
+abcd.*ABCD
+efgh.*EFGH
+ijk[lm]n
+opq?rst
