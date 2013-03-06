@@ -4,9 +4,15 @@
 #include "dfa.h"
 #include <sys/time.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
 int VERBOSE = 0;
 int DEBUG = 0;
 static void regex_group_user_func(FILE *, regex_parser *);
+static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n);
+void random(int a[], int n);
 
 static void usage()
 {
@@ -105,7 +111,11 @@ int main(int argc, char **argv){
 	struct timeval start,end;
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
+
 	regex_group_user_func(ruleset, parser);
+
+	regex_random_group_func(ruleset, parser, 3);
+
 	/* END USER CODE */
 	gettimeofday(&end,NULL);
 	printf(">> preprocessing time: %ldms\n",
@@ -141,16 +151,111 @@ static void regex_group_user_func(FILE *ruleset, regex_parser *parser){
 
 	int group[num+1];
 	
+	printf("test regex number is %u\n", num);
+
 	// Test examples
 	memset(group, 0, (num+1)*sizeof(int));	// clear the group
-	group[1] = 1;	// index evaluation must start from group[1]
+	for(int i=1;i<=num;i++){
+	group[i] = i;}	// index evaluation must start from group[1]
 					// add the 3rd regular expression in the given ruleset
-	group[2] = 2;	// add the last regular expreesion in the given ruleset
-	group[3] = 3;	
-	group[0] = 3;	// the count of regular expressions is filled in group[0]
+	//group[2] = 2;	// add the last regular expreesion in the given ruleset
+	//group[3] = 3;	
+	group[0] = num;	// the count of regular expressions is filled in group[0]
 					// there are two regular expreesions in the group
 	unsigned long size = parser->parse_regex_group(ruleset, group);
 					// get the number of DFA states corresponding to the group
-	printf("test regex number is %u, group DFA size is %u\n", num, size);
+	printf("put all regex together, total number of DFAs is :%u\n\n", size);
 	
+}
+
+static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n){
+
+	int num = parser->get_regex_num(ruleset);
+	int index[num+n];
+	memset(index, 0, (num+n)*sizeof(int));	// clear
+	int fences[n+1];
+	memset(fences, 0, (n+1)*sizeof(int));	// clear
+	int group[num+1];
+	memset(group, 0, (num+1)*sizeof(int));	// clear the group
+	unsigned long  size[n];
+	memset(size, 0, n *sizeof(unsigned long ));	// clear
+
+	int i,j;
+	int totalDFA = 0;
+
+	printf("test regex number is %u\n", num);
+
+	//init the index, including the fences
+	for(i=0;i<n-1;i++){
+		index[i] = 0;
+	}
+	for(i;i<num+n-1;i++){
+		index[i] = i+2-n;
+	}
+
+	//random the index, including fences
+	random(index,num+n-1);
+
+	for(i=0;i<num+n-1;i++){
+		printf("%u ", index[i]);
+	}
+	printf("\n");
+
+	//find the fences
+	j=1;
+	for(i=0;i<num+n-1;i++){
+		if(index[i]==0){
+			fences[j]=i+1;
+			j++;
+		}
+	}
+	fences[n]=num+n;
+
+	// for(j=0;j<n+1;j++){
+	// 	printf("%u ",fences[j]);
+	// }
+	// printf("\n");
+
+	//cal DFAs
+	for(j=0;j<n;j++){
+		memset(group, 0, (num+1)*sizeof(int));	// clear the group
+
+		group[0]=fences[j+1] - fences[j] -1;
+
+		if(group[0]==0){
+			size[j] = 0;
+			printf("group %u : DFA size : %u\n",j+1,size[j]);
+
+		}
+		
+		else{
+			printf("group %u : ",j+1);
+			for(i=1;i<=group[0];i++){
+				group[i] = index[i + fences[j] -1] ;
+				printf("%u ", group[i]);
+			}
+			size[j] = parser->parse_regex_group(ruleset, group);
+			printf(", DFA size : %u\n",size[j]);
+			totalDFA+=size[j];
+		}
+	}
+	printf("Divided into %u groups randomly,total number of DFAs is : %u\n\n",n,totalDFA);
+}
+
+
+// 随机打乱一个数组
+void random(int a[], int n)
+{
+	int index, tmp, i;
+	srand(time(NULL));
+	for (i = 0; i < n; i++)
+	{
+		index = rand() % (n - i) + i;
+		if (index != i)
+		{
+			tmp = a[i];
+			a[i] = a[index];
+			a[index] = tmp;
+		}
+	}
 }
