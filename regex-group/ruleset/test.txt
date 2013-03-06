@@ -1,12 +1,3 @@
-a*b+
-abb
-
-abc
-ab.*cd
-
-abcd
-bc
-bcd
-cd
-
-
+a
+b
+ab

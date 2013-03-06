@@ -12,6 +12,7 @@ int VERBOSE = 0;
 int DEBUG = 0;
 static void regex_group_user_func(FILE *, regex_parser *);
 static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n);
+static void init_group_func(FILE *ruleset, regex_parser *parser);
 void random(int a[], int n);
 
 static void usage()
@@ -112,9 +113,10 @@ int main(int argc, char **argv){
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
 
-	regex_group_user_func(ruleset, parser);
+	//regex_group_user_func(ruleset, parser);
 
-	regex_random_group_func(ruleset, parser, 3);
+	//regex_random_group_func(ruleset, parser, 3);
+	init_group_func(ruleset, parser);
 
 	/* END USER CODE */
 	gettimeofday(&end,NULL);
@@ -164,8 +166,7 @@ static void regex_group_user_func(FILE *ruleset, regex_parser *parser){
 					// there are two regular expreesions in the group
 	unsigned long size = parser->parse_regex_group(ruleset, group);
 					// get the number of DFA states corresponding to the group
-	printf("put all regex together, total number of DFAs is :%u\n\n", size);
-	
+	printf("put all regex together, total number of DFAs is :%u\n\n", size);	
 }
 
 static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n){
@@ -257,5 +258,40 @@ void random(int a[], int n)
 			a[i] = a[index];
 			a[index] = tmp;
 		}
+	}
+}
+
+//init the 2-2 DFA
+static void init_group_func(FILE *ruleset, regex_parser *parser){
+	int num = parser->get_regex_num(ruleset);
+
+	unsigned long DFAdata[num+1][num+1];
+	memset(DFAdata, 0, (num+1) * (num+1) *sizeof(unsigned long));	// clear
+
+	int group[3];
+	memset(group, 0, 3*sizeof(int));	// clear the group
+
+	int i,j;
+
+	group[0] = 1;
+	for(i=1;i<=num;i++){
+		group[1]=i;
+		DFAdata[i][i] =  parser->parse_regex_group(ruleset, group);
+	}
+
+	group[0] = 2;
+	for(i=1;i<=num;i++){
+		group[1]=i;
+		for(j=1;j<i;j++){
+			group[2]=j;
+			DFAdata[i][j] =  DFAdata[j][i] =  parser->parse_regex_group(ruleset, group);
+		}
+	}
+
+	for(i=0;i<=num;i++){
+		for(j=0;j<=num;j++){
+			printf("%u ",DFAdata[i][j]);
+		}
+		printf("\n");
 	}
 }
