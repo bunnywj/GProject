@@ -8,12 +8,30 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define REGEXNUM 10
+#define GROUPNUM 3
+#define FIRST_GE_NUM 1000
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
 int VERBOSE = 0;
 int DEBUG = 0;
-static void regex_group_user_func(FILE *, regex_parser *);
-static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n);
-static void init_group_func(FILE *ruleset, regex_parser *parser);
+unsigned long DFAdata[REGEXNUM+1][REGEXNUM+1]={0};
+
+struct groupnode
+{
+	/* data */
+	int group[REGEXNUM];
+	int index[GROUPNUM-1];
+	unsigned long totalDFA;
+};
+
+static void cal_all_DFA(FILE *, regex_parser *);
+//static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n);
+
 void random(int a[], int n);
+bool init_group_func(FILE *ruleset, regex_parser *parser);
+unsigned long cal_approximate_group_DFA(int group[], int num);
+void init_first_generation(struct groupnode test_group[], int num);
 
 static void usage()
 {
@@ -84,6 +102,7 @@ void check_file(char *filename, char *mode){
 	}
 }
 
+
 /*
  *  MAIN - entry point
  */
@@ -113,10 +132,19 @@ int main(int argc, char **argv){
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
 
-	//regex_group_user_func(ruleset, parser);
+	if(init_group_func(ruleset, parser)){
+	
+		cal_all_DFA(ruleset, parser);
 
-	//regex_random_group_func(ruleset, parser, 3);
-	init_group_func(ruleset, parser);
+		srand((unsigned)time(0));
+
+		struct groupnode test_group[FIRST_GE_NUM];
+		init_first_generation(test_group,FIRST_GE_NUM);
+		
+		// for(int i;i<FIRST_GE_NUM;i++)
+		// 	printf("%u\n",test_group[i].totalDFA);
+
+	}
 
 	/* END USER CODE */
 	gettimeofday(&end,NULL);
@@ -148,20 +176,23 @@ int main(int argc, char **argv){
  * of the regular expreesion indexes must strictly start from the group[1].
  *
  */
-static void regex_group_user_func(FILE *ruleset, regex_parser *parser){
+static void cal_all_DFA(FILE *ruleset, regex_parser *parser){
 	int num = parser->get_regex_num(ruleset);
 
 	int group[num+1];
+	int i;
 	
 	printf("test regex number is %u\n", num);
 
 	// Test examples
 	memset(group, 0, (num+1)*sizeof(int));	// clear the group
-	for(int i=1;i<=num;i++){
-	group[i] = i;}	// index evaluation must start from group[1]
-					// add the 3rd regular expression in the given ruleset
-	//group[2] = 2;	// add the last regular expreesion in the given ruleset
-	//group[3] = 3;	
+
+	for(i=1;i<=num;i++){
+		group[i] = i;}	// index evaluation must start from group[1]
+						// add the 3rd regular expression in the given ruleset
+		//group[2] = 2;	// add the last regular expreesion in the given ruleset
+		//group[3] = 3;	
+	
 	group[0] = num;	// the count of regular expressions is filled in group[0]
 					// there are two regular expreesions in the group
 	unsigned long size = parser->parse_regex_group(ruleset, group);
@@ -169,86 +200,10 @@ static void regex_group_user_func(FILE *ruleset, regex_parser *parser){
 	printf("put all regex together, total number of DFAs is :%u\n\n", size);	
 }
 
-static void regex_random_group_func(FILE *ruleset, regex_parser *parser, int n){
-
-	int num = parser->get_regex_num(ruleset);
-	int index[num+n];
-	memset(index, 0, (num+n)*sizeof(int));	// clear
-	int fences[n+1];
-	memset(fences, 0, (n+1)*sizeof(int));	// clear
-	int group[num+1];
-	memset(group, 0, (num+1)*sizeof(int));	// clear the group
-	unsigned long  size[n];
-	memset(size, 0, n *sizeof(unsigned long ));	// clear
-
-	int i,j;
-	int totalDFA = 0;
-
-	printf("test regex number is %u\n", num);
-
-	//init the index, including the fences
-	for(i=0;i<n-1;i++){
-		index[i] = 0;
-	}
-	for(i;i<num+n-1;i++){
-		index[i] = i+2-n;
-	}
-
-	//random the index, including fences
-	random(index,num+n-1);
-
-	for(i=0;i<num+n-1;i++){
-		printf("%u ", index[i]);
-	}
-	printf("\n");
-
-	//find the fences
-	j=1;
-	for(i=0;i<num+n-1;i++){
-		if(index[i]==0){
-			fences[j]=i+1;
-			j++;
-		}
-	}
-	fences[n]=num+n;
-
-	// for(j=0;j<n+1;j++){
-	// 	printf("%u ",fences[j]);
-	// }
-	// printf("\n");
-
-	//cal DFAs
-	for(j=0;j<n;j++){
-		memset(group, 0, (num+1)*sizeof(int));	// clear the group
-
-		group[0]=fences[j+1] - fences[j] -1;
-
-		if(group[0]==0){
-			size[j] = 0;
-			printf("group %u : DFA size : %u\n",j+1,size[j]);
-
-		}
-		
-		else{
-			printf("group %u : ",j+1);
-			for(i=1;i<=group[0];i++){
-				group[i] = index[i + fences[j] -1] ;
-				printf("%u ", group[i]);
-			}
-			size[j] = parser->parse_regex_group(ruleset, group);
-			printf(", DFA size : %u\n",size[j]);
-			totalDFA+=size[j];
-		}
-	}
-	printf("Divided into %u groups randomly,total number of DFAs is : %u\n\n",n,totalDFA);
-}
-
-
-// 随机打乱一个数组
-void random(int a[], int n)
-{
+/* 随机打乱一个数组 */
+void random(int a[], int n){
 	int index, tmp, i;
-	srand(time(NULL));
+
 	for (i = 0; i < n; i++)
 	{
 		index = rand() % (n - i) + i;
@@ -261,12 +216,16 @@ void random(int a[], int n)
 	}
 }
 
-//init the 2-2 DFA
-static void init_group_func(FILE *ruleset, regex_parser *parser){
+/* init the data of 2-2 DFA */
+bool init_group_func(FILE *ruleset, regex_parser *parser){
 	int num = parser->get_regex_num(ruleset);
+	
+	//memset(DFAdata, 0, (num+1) * (num+1) *sizeof(unsigned long));	// clear
 
-	unsigned long DFAdata[num+1][num+1];
-	memset(DFAdata, 0, (num+1) * (num+1) *sizeof(unsigned long));	// clear
+	if(num!=REGEXNUM){
+		printf("The numbers of regexs don't match!\n");
+		return 0;
+	}
 
 	int group[3];
 	memset(group, 0, 3*sizeof(int));	// clear the group
@@ -288,10 +247,73 @@ static void init_group_func(FILE *ruleset, regex_parser *parser){
 		}
 	}
 
-	for(i=0;i<=num;i++){
-		for(j=0;j<=num;j++){
-			printf("%u ",DFAdata[i][j]);
+	// for(i=0;i<=num;i++){
+	// 	for(j=0;j<=num;j++){
+	// 		printf("%u ",DFAdata[i][j]);
+	// 	}
+	// 	printf("\n");
+	// }
+	return 1;
+}
+
+/* cal the approximate sum of a group using adding 2-2 data*/
+unsigned long cal_approximate_group_DFA(int group[], int num){
+	int i,j;
+	unsigned long totalDFA = 0;
+	for(i=0;i<num;i++){
+		for(j=i;j<num;j++){
+			totalDFA += DFAdata[group[i]][group[j]];
 		}
-		printf("\n");
+	}
+	return totalDFA;
+}
+
+/* init the first feneration */
+void init_first_generation(struct groupnode test_group[],int num){
+
+	int i,j,k;
+	int temp[REGEXNUM];
+	int n1,n2,n3;
+	int rand1,rand2;
+
+	for(i=0;i<num;i++){
+
+		for(k=0;k<REGEXNUM;k++)
+			test_group[i].group[k] = k+1 ;
+
+		random(test_group[i].group,REGEXNUM);
+
+		// for(j=0;j<REGEXNUM;j++){
+		// 	printf("%u ", test_group[i].group[j]);
+		// }
+		// printf("\n");
+
+		rand1= rand() %(REGEXNUM-1) + 1;
+		do{
+			rand2= rand() %(REGEXNUM-1) + 1;
+		}while(rand2 == rand1);
+		test_group[i].index[1] = MAX(rand1,rand2);
+		test_group[i].index[0] = rand1 + rand2 - test_group[i].index[1];
+
+		memset(temp, 0, REGEXNUM * sizeof(int));
+		memcpy(temp,test_group[i].group, test_group[i].index[0]*sizeof(int));
+		n1 = cal_approximate_group_DFA(temp,test_group[i].index[0]);
+		// for(k=0;k<REGEXNUM;k++){printf("%u ", temp[k]);}
+		// printf("\n");
+
+		memset(temp, 0, REGEXNUM * sizeof(int));
+		memcpy(temp,test_group[i].group + test_group[i].index[0],(test_group[i].index[1]-test_group[i].index[0])*sizeof(int));
+		n2 = cal_approximate_group_DFA(temp,test_group[i].index[1]-test_group[i].index[0]);
+		// for(k=0;k<REGEXNUM;k++){printf("%u ", temp[k]);}
+		// printf("\n");
+
+		memset(temp, 0, REGEXNUM * sizeof(int));
+		memcpy(temp,test_group[i].group+test_group[i].index[1],(REGEXNUM - test_group[i].index[1])*sizeof(int));
+		n3 = cal_approximate_group_DFA(temp,REGEXNUM - test_group[i].index[1]);
+		// for(k=0;k<REGEXNUM;k++){printf("%u ", temp[k]);}
+		// printf("\n");
+
+		test_group[i].totalDFA = n1+n2+n3;
+		// printf("%u + %u + %u = %u\n\n",n1,n2,n3,test_group[i].totalDFA);
 	}
 }
