@@ -1,0 +1,5 @@
+
+^Deleting[^\r\n]*ATTENTION\x3A
+^FILESIZE\x3E[^\r\n]*\x3E\d+
+
+^Host\x3A[^\r\n]*adblock\x2Elinkz\x2Ecom

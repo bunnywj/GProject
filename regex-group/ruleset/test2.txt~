@@ -1,0 +1,4 @@
+
+^Cookie\x3A[^\r\n]*origin\x3Dsidefind
+
+^Host\x3A[^\r\n]*adserver\.warezclient\.com.*User-Agent\x3A[^\r\n]*Indy\s+Library

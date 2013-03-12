@@ -10,8 +10,8 @@
 
 #define REGEXNUM 23
 #define GROUPNUM 4
-#define SIZE 200
-#define MAXGEN 2000
+#define SIZE 10
+#define MAXGEN 5000
 #define P_CORSS 0.75
 #define P_MUTATION 0.05
 #define MAX(a,b) ((a)>(b)?(a):(b))
@@ -29,6 +29,10 @@ struct groupnode
 	unsigned long fitsum;
 
 }cur[SIZE],next[SIZE],nodemax,nodemin;
+
+FILE *fp;
+FILE *ruleset;
+regex_parser *parser;
 
 static void usage()
 {
@@ -122,7 +126,7 @@ static void cal_total_DFA(FILE *ruleset, regex_parser *parser){
 	int group[num+1];
 	int i;
 	
-	printf("test regex number is %u\n", num);
+	printf("test regex number is %d\n", num);
 
 	// Test examples
 	memset(group, 0, (num+1)*sizeof(int));	// clear the group
@@ -137,7 +141,7 @@ static void cal_total_DFA(FILE *ruleset, regex_parser *parser){
 					// there are two regular expreesions in the group
 	unsigned long size = parser->parse_regex_group(ruleset, group);
 					// get the number of DFA states corresponding to the group
-	printf("put all regex together, total number of DFAs is :%u\n\n", size);	
+	printf("put all regex together, total number of DFAs is :%lu\n\n", size);	
 }
 
 /* get a double random number between 0 and 1 */
@@ -153,7 +157,7 @@ int randi(int k)
 }
 
 /* init the data of 2-2 interact DFA */
-bool init_data(FILE *ruleset, regex_parser *parser){
+bool init_data(){
 
 	int num = parser->get_regex_num(ruleset);
 	
@@ -186,7 +190,7 @@ bool init_data(FILE *ruleset, regex_parser *parser){
 
 	// for(i=0;i<=num;i++){
 	// 	for(j=0;j<=num;j++){
-	// 		printf("%u ",DFAdata[i][j]);
+	// 		printf("%lu ",DFAdata[i][j]);
 	// 	}
 	// 	printf("\n");
 	// }
@@ -203,6 +207,34 @@ unsigned long cal_approximate_group_DFA(int group[], int num){
 		}
 	}
 	return fitness;
+}
+
+
+ /* cal the accurate sum of DFA of node */
+unsigned long cal_accurate_group_DFA(struct groupnode node){
+
+	int i,j,k;
+	int count[GROUPNUM+1];
+	int group[GROUPNUM+1][REGEXNUM+1];
+	unsigned long size = 0;
+	
+	memset(count, 0, (GROUPNUM+1)*sizeof(int));
+	memset(group, 0, (GROUPNUM+1)*(REGEXNUM+1)*sizeof(int));
+
+	for(k=1;k<=GROUPNUM;k++){
+
+		for(j=0;j<REGEXNUM;j++){				
+			if(node.index[j] == k){
+				count[k] = count[k] + 1;
+				group[k][count[k]] = j + 1;
+			}
+		}
+
+		group[k][0] = count[k];
+		size += parser->parse_regex_group(ruleset, group[k]);
+	}
+
+	return size;
 }
 
 /* cal the fitness and fitsum of one node */
@@ -227,17 +259,23 @@ void cal_fitness(){
 				}
 			}
 
+			//approximate
 			cur[i].fitness += cal_approximate_group_DFA(group[k],count[k]);
-			cur[i].fitsum = i>0?(cur[i].fitness+cur[i-1].fitsum):(cur[0].fitness);
+
 		}
+
+		//accurate
+		//cur[i].fitness = cal_accurate_group_DFA(cur[i]);
+
+		cur[i].fitsum = i>0?(cur[i].fitness+cur[i-1].fitsum):(cur[0].fitness);
 		
 		// for(k=1;k<=GROUPNUM;k++){
 		// 	for(j=0;j<REGEXNUM;j++){	
-		// 		printf("%u ", group[k][j]);
+		// 		printf("%d ", group[k][j]);
 		// 	}
-		// 	printf(">>%u \n",count[k]);
+		// 	printf(">>%d \n",count[k]);
 		// }
-		// printf(">>%u >>%u \n",cur[i].fitness,cur[i].fitsum);
+		// printf(">>%lu >>%lu \n",cur[i].fitness,cur[i].fitsum);
 	}
 }
 
@@ -250,15 +288,13 @@ void init_first_generation(){
 
 		for(j=0;j<REGEXNUM;j++){
 			cur[i].index[j] =randi(GROUPNUM) ;
-			//printf("%u ", cur[i].index[j]);
+			//printf("%d ", cur[i].index[j]);
 		}
 		//printf("\n");
 
 	}
 	cal_fitness();
 }
-
-
 
 /* get which node to 换代  */
 int sel(){
@@ -278,6 +314,11 @@ void tran(){
     	if(cur[i].fitness < nodemin.fitness)
     		nodemin=cur[i];   	
     }
+
+    /* ******************************** */
+    fprintf(fp,"%lu\n",nodemin.fitness);
+    /* ******************************** */
+
     for(k=0;k<SIZE;k+=2){
     	//选择交叉个体 
     	i=sel();
@@ -323,28 +364,42 @@ void tran(){
    	cal_fitness();
  }
 
+
 void GA(){
 	int i;
 	int cnt=0;
-	unsigned long ans;
+
+	struct timeval start,end;
+	gettimeofday(&start,NULL);
 
 	while(cnt++ < MAXGEN){
 		tran();
 	}
 
     nodemin=cur[0];
+
     for(i=1;i<SIZE;i++){
     	if(cur[i].fitness < nodemin.fitness)
     		nodemin=cur[i];   	
     }
 
-	printf("minimal DFA is %u\n",nodemin.fitness);
+    gettimeofday(&end,NULL);
+	printf(">> GA time: %ldms\n",
+			(end.tv_sec-start.tv_sec)*1000+(end.tv_usec-start.tv_usec)/1000);
+
+    /* ******************************************************************* */
+	fprintf(fp,"%lu\n",nodemin.fitness); 
+
+	printf("best group is\n");
 
 	for(i=0;i<REGEXNUM;i++){
-		printf("%u ", nodemin.index[i]);
+		printf("%d ", nodemin.index[i]);
 	}
 	printf("\n");
 
+	printf("approximate minimal DFA is %lu\n",nodemin.fitness);
+	printf("accurate minimal DFA is %lu\n",cal_accurate_group_DFA(nodemin));
+	/* ******************************************************************* */
  }
 
 /*
@@ -369,36 +424,37 @@ int main(int argc, char **argv){
 	NFA *nfa=NULL;
 	DFA *dfa=NULL;
 	
-	FILE *ruleset=fopen(config.regex_file,"r");
-	regex_parser *parser=new regex_parser(false,false);
+	ruleset=fopen(config.regex_file,"r");
+	parser=new regex_parser(false,false);
 
-	struct timeval start,middle,end;
+	struct timeval start,end;
 	gettimeofday(&start,NULL);
-	gettimeofday(&middle,NULL);
 	/* BEGIN USER CODE */
 
-	if(init_data(ruleset, parser)){
-	
-		//cal_total_DFA(ruleset, parser);
+	//cal_total_DFA(ruleset, parser);
 
-		srand((unsigned)time(0));
+    if ((fp = fopen("results/record.txt","wt")) == NULL)
+    {
+    	printf("open file failed!\n");
+    	exit(1);
+    }
 
-		init_first_generation();
-
-		gettimeofday(&middle,NULL);
-
-		printf(">> init time: %ldms\n",
-			(middle.tv_sec-start.tv_sec)*1000+(middle.tv_usec-start.tv_usec)/1000);
-
-		GA();
-
+	if(init_data()==false){
+		exit(1);
 	}
 
+	srand((unsigned)time(0));
+
+	init_first_generation();
+
+	GA();
+
+	fclose(fp);
 	/* END USER CODE */
 	gettimeofday(&end,NULL);
 
-	printf(">> GA time: %ldms\n",
-			(end.tv_sec-middle.tv_sec)*1000+(end.tv_usec-middle.tv_usec)/1000);
+	printf(">> preprocessing time: %ldms\n",
+			(end.tv_sec-start.tv_sec)*1000+(end.tv_usec-start.tv_usec)/1000);
 
 	if (parser!=NULL) delete parser;
 	fclose(ruleset);

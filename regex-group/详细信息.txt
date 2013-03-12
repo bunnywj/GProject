@@ -1,0 +1,6 @@
+>> GA time: 2637118ms
+best group is
+2 2 4 4 4 3 1 3 4 4 
+approximate minimal DFA is 441
+accurate minimal DFA is 441
+>> preprocessing time: 2672788ms
