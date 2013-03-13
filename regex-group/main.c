@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define REGEXNUM 23
-#define GROUPNUM 5
-#define SIZE 500
-#define MAXGEN 50000
+#define REGEXNUM 16
+//#define GROUPNUM 5
+#define SIZE 50
+#define MAXGEN 500000
 #define P_CORSS 0.75        /* default 0.75 */
 #define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))
@@ -19,6 +19,9 @@
 
 int VERBOSE = 0;
 int DEBUG = 0;
+
+int GROUPNUM = 4;
+
 unsigned long DFAdata[REGEXNUM+1][REGEXNUM+1]={0};
 
 struct groupnode
@@ -84,7 +87,9 @@ static int parse_arguments(int argc, char **argv)
 			config.regex_file=argv[i];
 		}
 		else {
-			fprintf(stderr,"Ignoring invalid option %s\n",argv[i]);
+			//fprintf(stderr,"Ignoring invalid option %s\n",argv[i]);
+			GROUPNUM = atoi(argv[i]); 
+			printf("to group %d patterns into %d groups\n",REGEXNUM,GROUPNUM);
 		}
 		i++;
 	}
@@ -194,12 +199,13 @@ bool init_data(){
 		}
 	}
 
-	for(i=0;i<=num;i++){
-		for(j=0;j<=num;j++){
-			printf("%lu ",DFAdata[i][j]);
-		}
-		printf("\n");
-	}
+	// for(i=0;i<=num;i++){
+	// 	for(j=0;j<=num;j++){
+	// 		printf("%lu ",DFAdata[i][j]);
+	// 	}
+	// 	printf("\n");
+	// }
+	
 	return 1;
 }
 
@@ -438,8 +444,9 @@ int main(int argc, char **argv){
 	/* BEGIN USER CODE */
 
 	//cal_total_DFA(ruleset, parser);
-
-    if ((fp = fopen("results/record.txt","wt")) == NULL)
+	char str[100];
+ 	sprintf(str,"results/record_%d.txt",GROUPNUM);
+    if ((fp = fopen(str,"wt")) == NULL)
     {
     	printf("open file failed!\n");
     	exit(1);
