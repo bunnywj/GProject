@@ -9,11 +9,11 @@
 #include <time.h>
 
 #define REGEXNUM 23
-#define GROUPNUM 4
-#define SIZE 10
-#define MAXGEN 5000
-#define P_CORSS 0.75
-#define P_MUTATION 0.05
+#define GROUPNUM 5
+#define SIZE 500
+#define MAXGEN 50000
+#define P_CORSS 0.75        /* default 0.75 */
+#define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
@@ -172,11 +172,13 @@ bool init_data(){
 	memset(group, 0, 3*sizeof(int));	// clear the group
 
 	int i,j;
+	unsigned long temp = 0;
 
 	group[0] = 1;
 	for(i=1;i<=num;i++){
 		group[1]=i;
 		DFAdata[i][i] =  parser->parse_regex_group(ruleset, group);
+		DFAdata[0][0] += DFAdata[i][i];
 	}
 
 	group[0] = 2;
@@ -184,16 +186,20 @@ bool init_data(){
 		group[1]=i;
 		for(j=1;j<i;j++){
 			group[2]=j;
-			DFAdata[i][j] =  DFAdata[j][i] =  parser->parse_regex_group(ruleset, group);
+			temp =  parser->parse_regex_group(ruleset, group) ;
+			if(temp < DFAdata[i][i] + DFAdata[j][j])
+				DFAdata[i][j] = DFAdata[j][i] =0;
+			else
+				DFAdata[i][j] = DFAdata[j][i] = temp - DFAdata[i][i] - DFAdata[j][j];
 		}
 	}
 
-	// for(i=0;i<=num;i++){
-	// 	for(j=0;j<=num;j++){
-	// 		printf("%lu ",DFAdata[i][j]);
-	// 	}
-	// 	printf("\n");
-	// }
+	for(i=0;i<=num;i++){
+		for(j=0;j<=num;j++){
+			printf("%lu ",DFAdata[i][j]);
+		}
+		printf("\n");
+	}
 	return 1;
 }
 
@@ -397,7 +403,7 @@ void GA(){
 	}
 	printf("\n");
 
-	printf("approximate minimal DFA is %lu\n",nodemin.fitness);
+	printf("approximate minimal DFA is %lu\n",nodemin.fitness + DFAdata[0][0]);
 	printf("accurate minimal DFA is %lu\n",cal_accurate_group_DFA(nodemin));
 	/* ******************************************************************* */
  }
