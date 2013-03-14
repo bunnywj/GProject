@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define REGEXNUM 16
+#define REGEXNUM 10
 //#define GROUPNUM 5
 #define SIZE 50
-#define MAXGEN 500000
+#define MAXGEN 50000
 #define P_CORSS 0.75        /* default 0.75 */
 #define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))
@@ -223,7 +223,7 @@ unsigned long cal_approximate_group_DFA(int group[], int num){
 
 
  /* cal the accurate sum of DFA of node */
-unsigned long cal_accurate_group_DFA(struct groupnode node){
+unsigned long cal_accurate_node_DFA(struct groupnode node){
 
 	int i,j,k;
 	int count[GROUPNUM+1];
@@ -277,7 +277,7 @@ void cal_fitness(){
 		}
 
 		//accurate
-		//cur[i].fitness = cal_accurate_group_DFA(cur[i]);
+		//cur[i].fitness = cal_accurate_node_DFA(cur[i]);
 
 		cur[i].fitsum = i>0?(cur[i].fitness+cur[i-1].fitsum):(cur[0].fitness);
 		
@@ -410,7 +410,7 @@ void GA(){
 	printf("\n");
 
 	printf("approximate minimal DFA is %lu\n",nodemin.fitness + DFAdata[0][0]);
-	printf("accurate minimal DFA is %lu\n",cal_accurate_group_DFA(nodemin));
+	printf("accurate minimal DFA is %lu\n",cal_accurate_node_DFA(nodemin));
 	/* ******************************************************************* */
  }
 
@@ -443,7 +443,8 @@ int main(int argc, char **argv){
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
 
-	//cal_total_DFA(ruleset, parser);
+	cal_total_DFA(ruleset, parser);
+
 	char str[100];
  	sprintf(str,"results/record_%d.txt",GROUPNUM);
     if ((fp = fopen(str,"wt")) == NULL)
