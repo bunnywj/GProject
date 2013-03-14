@@ -11,7 +11,7 @@
 #define REGEXNUM 10
 //#define GROUPNUM 5
 #define SIZE 50
-#define MAXGEN 50000
+#define MAXGEN 500000
 #define P_CORSS 0.75        /* default 0.75 */
 #define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))

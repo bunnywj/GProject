@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define SIZE 10
-#define MAXGEN 2
+#define SIZE 50
+#define MAXGEN 500000
 #define P_CORSS 0.75        /* default 0.75 */
 #define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))
@@ -253,7 +253,7 @@ unsigned long cal_accurate_node_DFA(struct groupnode node){
 
 /* cal the fitness and fitsum of one node */
 void cal_fitness(){
-printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+
 	int i,j,k;
 	int count[GROUPNUM+1];
 	int group[GROUPNUM+1][REGEXNUM];
@@ -283,13 +283,13 @@ printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
 		cur[i].fitsum = i>0?(cur[i].fitness+cur[i-1].fitsum):(cur[0].fitness);
 		
-		for(k=1;k<=GROUPNUM;k++){
-			for(j=0;j<REGEXNUM;j++){	
-				printf("%d ", group[k][j]);
-			}
-			printf(">>%d \n",count[k]);
-		}
-		printf(">>%lu >>%lu \n",cur[i].fitness,cur[i].fitsum);
+		// for(k=1;k<=GROUPNUM;k++){
+		// 	for(j=0;j<REGEXNUM;j++){	
+		// 		printf("%d ", group[k][j]);
+		// 	}
+		// 	printf(">>%d \n",count[k]);
+		// }
+		// printf(">>%lu >>%lu \n",cur[i].fitness,cur[i].fitsum);
 	}
 }
 
@@ -322,7 +322,7 @@ int sel(){
 	double p=randd();
 	unsigned long sum=cur[SIZE-1].fitsum;
 	for(int i=0;i<SIZE;i++){
-		if(cur[i].fitsum> sum * p) return i;
+		if(cur[i].fitsum > sum * p) return i;
 	}
 }
 
@@ -330,14 +330,20 @@ int sel(){
 void tran(){
 	int i,j,k,pos;
     //找当前种群最优个体 
-    nodemin=cur[0];
+    nodemin.fitness=cur[0].fitness;
+    nodemin.fitsum=cur[0].fitsum;
+    memcpy(nodemin.index,cur[0].index,REGEXNUM*sizeof(int));
+
     for(i=1;i<SIZE;i++){
-    	if(cur[i].fitness < nodemin.fitness)
-    		nodemin=cur[i];   	
+    	if(cur[i].fitness < nodemin.fitness){
+			nodemin.fitness=cur[i].fitness;
+  			nodemin.fitsum=cur[i].fitsum;
+   			memcpy(nodemin.index,cur[i].index,REGEXNUM*sizeof(int));
+    	}
     }
 
     /* ******************************** */
-    printf("*************************%lu\n",nodemin.fitness);
+    //printf("*************************%lu\n",nodemin.fitness);
     fprintf(fp,"%lu\n",nodemin.fitness);
     /* ******************************** */
 
@@ -371,17 +377,29 @@ void tran(){
     	}
    	}
    	//找下一代的最差个体 
-  	nodemax=next[0],j=0;
+  	nodemax.fitness=next[0].fitness;
+  	nodemax.fitsum=next[0].fitsum;
+   	memcpy(nodemax.index,next[0].index,REGEXNUM*sizeof(int));
+
+  	j=0;
   	for(i=1;i<SIZE;i++){
   		if(next[i].fitness > nodemax.fitness){
-  			nodemax=next[i];
+			nodemax.fitness=cur[i].fitness;
+  			nodemax.fitsum=cur[i].fitsum;
+   			memcpy(nodemax.index,cur[i].index,REGEXNUM*sizeof(int));
   	  		j=i;
   	  	}
    	}
    	//用上一代的最优个体替换下一代的最差个体
-   	next[j]=nodemin;
+   	next[j].fitness=nodemin.fitness;
+  	next[j].fitsum=nodemin.fitsum;
+   	memcpy(next[j].index,nodemin.index,REGEXNUM*sizeof(int));
    
-   	memcpy(cur,next,sizeof(cur));
+    for(i=0;i<SIZE;i++){
+    	cur[i].fitness=next[i].fitness;
+  		cur[i].fitsum=next[i].fitsum;
+   		memcpy(cur[i].index,next[i].index,REGEXNUM*sizeof(int));
+    }
       
    	cal_fitness();
  }
@@ -398,11 +416,17 @@ void GA(){
 		tran();
 	}
 
-    nodemin=cur[0];
+    //找当前种群最优个体 
+    nodemin.fitness=cur[0].fitness;
+    nodemin.fitsum=cur[0].fitsum;
+    memcpy(nodemin.index,cur[0].index,REGEXNUM*sizeof(int));
 
     for(i=1;i<SIZE;i++){
-    	if(cur[i].fitness < nodemin.fitness)
-    		nodemin=cur[i];   	
+    	if(cur[i].fitness < nodemin.fitness){
+			nodemin.fitness=cur[i].fitness;
+  			nodemin.fitsum=cur[i].fitsum;
+   			memcpy(nodemin.index,cur[i].index,REGEXNUM*sizeof(int));
+    	}
     }
 
     gettimeofday(&end,NULL);
