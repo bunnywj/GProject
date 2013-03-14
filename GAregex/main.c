@@ -8,8 +8,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define SIZE 10
-#define MAXGEN 2
+#define REGEXNUM 10
+//#define GROUPNUM 5
+#define SIZE 50
+#define MAXGEN 50000
 #define P_CORSS 0.75        /* default 0.75 */
 #define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))
@@ -18,15 +20,14 @@
 int VERBOSE = 0;
 int DEBUG = 0;
 
-//by default
-int GROUPNUM;
-int REGEXNUM;
+int GROUPNUM = 4;
 
-unsigned long **DFAdata;
+unsigned long DFAdata[REGEXNUM+1][REGEXNUM+1]={0};
 
 struct groupnode
 {
-	int *index;
+
+	int index[REGEXNUM];
 	unsigned long fitness;
 	unsigned long fitsum;
 
@@ -143,7 +144,10 @@ static void cal_total_DFA(){
 	memset(group, 0, (num+1)*sizeof(int));	// clear the group
 
 	for(i=1;i<=num;i++){
-		group[i] = i;}
+		group[i] = i;}	// index evaluation must start from group[1]
+						// add the 3rd regular expression in the given ruleset
+		//group[2] = 2;	// add the last regular expreesion in the given ruleset
+		//group[3] = 3;	
 	
 	group[0] = num;	// the count of regular expressions is filled in group[0]
 					// there are two regular expreesions in the group
@@ -165,23 +169,22 @@ int randi(int k)
 }
 
 /* init the data of 2-2 interact DFA */
-void init_data(){
+bool init_data(){
 
 	int num = parser->get_regex_num(ruleset);
 	
 	//memset(DFAdata, 0, (num+1) * (num+1) *sizeof(unsigned long));	// clear
 
-	int i,j;
-	unsigned long temp = 0;
-
-	DFAdata = (unsigned long **) malloc(sizeof(unsigned long *)*(num+1));
-	for(i=0 ; i < num+1 ; i++){
-		DFAdata[i]=(unsigned long *) malloc(sizeof(unsigned long )*(num+1));
-		memset(DFAdata[i], 0, (num+1) *sizeof(unsigned long));	// clear
+	if(num!=REGEXNUM){
+		printf("The numbers of regexs don't match!\n");
+		return 0;
 	}
 
 	int group[3];
 	memset(group, 0, 3*sizeof(int));	// clear the group
+
+	int i,j;
+	unsigned long temp = 0;
 
 	group[0] = 1;
 	for(i=1;i<=num;i++){
@@ -209,6 +212,8 @@ void init_data(){
 		}
 		printf("\n");
 	}
+	
+	return 1;
 }
 
 /* cal the approximate sum of DFA of a group using data of 2-2 matrix */
@@ -253,7 +258,7 @@ unsigned long cal_accurate_node_DFA(struct groupnode node){
 
 /* cal the fitness and fitsum of one node */
 void cal_fitness(){
-printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+
 	int i,j,k;
 	int count[GROUPNUM+1];
 	int group[GROUPNUM+1][REGEXNUM];
@@ -283,13 +288,13 @@ printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
 		cur[i].fitsum = i>0?(cur[i].fitness+cur[i-1].fitsum):(cur[0].fitness);
 		
-		for(k=1;k<=GROUPNUM;k++){
-			for(j=0;j<REGEXNUM;j++){	
-				printf("%d ", group[k][j]);
-			}
-			printf(">>%d \n",count[k]);
-		}
-		printf(">>%lu >>%lu \n",cur[i].fitness,cur[i].fitsum);
+		// for(k=1;k<=GROUPNUM;k++){
+		// 	for(j=0;j<REGEXNUM;j++){	
+		// 		printf("%d ", group[k][j]);
+		// 	}
+		// 	printf(">>%d \n",count[k]);
+		// }
+		// printf(">>%lu >>%lu \n",cur[i].fitness,cur[i].fitsum);
 	}
 }
 
@@ -298,20 +303,13 @@ void init_first_generation(){
 
 	int i,j;
 
-	nodemax.index = (int *) malloc(sizeof(int )*(REGEXNUM));
-	nodemin.index = (int *) malloc(sizeof(int )*(REGEXNUM));
-
 	for(i=0;i<SIZE;i++){
-
-		cur[i].index = (int *) malloc(sizeof(int )*(REGEXNUM));
 
 		for(j=0;j<REGEXNUM;j++){
 			cur[i].index[j] =randi(GROUPNUM) ;
 			//printf("%d ", cur[i].index[j]);
 		}
 		//printf("\n");
-
-		next[i].index = (int *) malloc(sizeof(int )*(REGEXNUM));
 
 	}
 	cal_fitness();
@@ -320,9 +318,9 @@ void init_first_generation(){
 /* get which node to 换代  */
 int sel(){
 	double p=randd();
-	unsigned long sum=cur[SIZE-1].fitsum;
+	double sum=cur[SIZE-1].fitsum;
 	for(int i=0;i<SIZE;i++){
-		if(cur[i].fitsum> sum * p) return i;
+		if(cur[i].fitsum/sum>p) return i;
 	}
 }
 
@@ -337,7 +335,6 @@ void tran(){
     }
 
     /* ******************************** */
-    printf("*************************%lu\n",nodemin.fitness);
     fprintf(fp,"%lu\n",nodemin.fitness);
     /* ******************************** */
 
@@ -453,19 +450,19 @@ int main(int argc, char **argv){
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
 
-	REGEXNUM = parser->get_regex_num(ruleset);
+	//cal_total_DFA();
 
 	char str[100];
- 	sprintf(str,"results/record_%d.txt",GROUPNUM);
- 	if ((fp = fopen(str,"wt")) == NULL)
+ 	sprintf(str,"record.txt");
+    if ((fp = fopen(str,"wt")) == NULL)
     {
     	printf("open file failed!\n");
     	exit(1);
     }
 
-	//cal_total_DFA();
-
-	init_data();
+	if(init_data()==false){
+		exit(1);
+	}
 
 	srand((unsigned)time(0));
 

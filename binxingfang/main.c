@@ -12,11 +12,12 @@ int VERBOSE = 0;
 int DEBUG = 0;
 
 unsigned long **DFAdata;
+int GROUPNUM = 4;
 
 static void usage()
 {
 	fprintf(stderr,"\n");
-	fprintf(stderr, "Usage: regex --parse|-p <regex_file> [Options]\n"); 
+	fprintf(stderr, "Usage: regex --parse|-p <regex_file> -n <group_number> [Options]\n"); 
 	fprintf(stderr, "\nOptions:\n");
 	fprintf(stderr, "       --debug|-d    enhanced verbosity level\n");
 	fprintf(stderr, "\n");
@@ -61,6 +62,15 @@ static int parse_arguments(int argc, char **argv)
 				return 0;
 			}
 			config.regex_file=argv[i];
+		}
+		else if (strcmp(argv[i], "-n") == 0){
+			i++;
+			if(i==argc){
+				fprintf(stderr,"Group number missing.\n");
+				return 0;
+			}
+			GROUPNUM = atoi(argv[i]); 
+			printf(">> to group into %d groups\n",GROUPNUM);
 		}
 		else {
 			fprintf(stderr,"Ignoring invalid option %s\n",argv[i]);
@@ -220,16 +230,15 @@ unsigned long cal_approximate_node_DFA(int index[], int REGEXNUM, int GROUPNUM){
 
 void GRELS(int REGEXNUM, int GROUPNUM){
 	int i,j;
-//	int index[REGEXNUM];
+	int index[REGEXNUM];
 	int tempindex[REGEXNUM];
 	unsigned long min,temp;
 	bool nochange;
 
-	// for(j=0;j<REGEXNUM;j++){
-	// 	index[j] =randi(GROUPNUM) ;
-	// 	printf("%d ", index[j]);
-	// }
-	int	index[10]={1,4,3,3,3,2,2,4,3,3};
+	for(j=0;j<REGEXNUM;j++){
+		index[j] =randi(GROUPNUM) ;
+		printf("%d ", index[j]);
+	}
 	printf("\n");
 
 	min = cal_approximate_node_DFA(index,REGEXNUM,GROUPNUM);
@@ -298,7 +307,7 @@ int main(int argc, char **argv){
 
 	int REGEXNUM = parser->get_regex_num(ruleset);
 
-	GRELS(REGEXNUM,4);
+	GRELS(REGEXNUM,GROUPNUM);
 
 	/* END USER CODE */
 	gettimeofday(&end,NULL);
