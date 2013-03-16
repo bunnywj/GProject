@@ -8,10 +8,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define REGEXNUM 10
-//#define GROUPNUM 5
 #define SIZE 50
-#define MAXGEN 500000
+#define MAXGEN 50000
 #define P_CORSS 0.75        /* default 0.75 */
 #define P_MUTATION 0.15     /* default 0.05 */
 #define MAX(a,b) ((a)>(b)?(a):(b))
@@ -20,14 +18,15 @@
 int VERBOSE = 0;
 int DEBUG = 0;
 
-int GROUPNUM = 4;
+//by default
+int GROUPNUM;
+int REGEXNUM;
 
-unsigned long DFAdata[REGEXNUM+1][REGEXNUM+1]={0};
+unsigned long **DFAdata;
 
 struct groupnode
 {
-
-	int index[REGEXNUM];
+	int *index;
 	unsigned long fitness;
 	unsigned long fitsum;
 
@@ -144,10 +143,7 @@ static void cal_total_DFA(){
 	memset(group, 0, (num+1)*sizeof(int));	// clear the group
 
 	for(i=1;i<=num;i++){
-		group[i] = i;}	// index evaluation must start from group[1]
-						// add the 3rd regular expression in the given ruleset
-		//group[2] = 2;	// add the last regular expreesion in the given ruleset
-		//group[3] = 3;	
+		group[i] = i;}
 	
 	group[0] = num;	// the count of regular expressions is filled in group[0]
 					// there are two regular expreesions in the group
@@ -169,22 +165,23 @@ int randi(int k)
 }
 
 /* init the data of 2-2 interact DFA */
-bool init_data(){
+void init_data(){
 
 	int num = parser->get_regex_num(ruleset);
 	
 	//memset(DFAdata, 0, (num+1) * (num+1) *sizeof(unsigned long));	// clear
 
-	if(num!=REGEXNUM){
-		printf("The numbers of regexs don't match!\n");
-		return 0;
+	int i,j;
+	unsigned long temp = 0;
+
+	DFAdata = (unsigned long **) malloc(sizeof(unsigned long *)*(num+1));
+	for(i=0 ; i < num+1 ; i++){
+		DFAdata[i]=(unsigned long *) malloc(sizeof(unsigned long )*(num+1));
+		memset(DFAdata[i], 0, (num+1) *sizeof(unsigned long));	// clear
 	}
 
 	int group[3];
 	memset(group, 0, 3*sizeof(int));	// clear the group
-
-	int i,j;
-	unsigned long temp = 0;
 
 	group[0] = 1;
 	for(i=1;i<=num;i++){
@@ -206,14 +203,12 @@ bool init_data(){
 		}
 	}
 
-	for(i=0;i<=num;i++){
-		for(j=0;j<=num;j++){
-			printf("%lu ",DFAdata[i][j]);
-		}
-		printf("\n");
-	}
-	
-	return 1;
+	// for(i=0;i<=num;i++){
+	// 	for(j=0;j<=num;j++){
+	// 		printf("%lu ",DFAdata[i][j]);
+	// 	}
+	// 	printf("\n");
+	// }
 }
 
 /* cal the approximate sum of DFA of a group using data of 2-2 matrix */
@@ -303,13 +298,20 @@ void init_first_generation(){
 
 	int i,j;
 
+	nodemax.index = (int *) malloc(sizeof(int )*(REGEXNUM));
+	nodemin.index = (int *) malloc(sizeof(int )*(REGEXNUM));
+
 	for(i=0;i<SIZE;i++){
+
+		cur[i].index = (int *) malloc(sizeof(int )*(REGEXNUM));
 
 		for(j=0;j<REGEXNUM;j++){
 			cur[i].index[j] =randi(GROUPNUM) ;
 			//printf("%d ", cur[i].index[j]);
 		}
 		//printf("\n");
+
+		next[i].index = (int *) malloc(sizeof(int )*(REGEXNUM));
 
 	}
 	cal_fitness();
@@ -318,9 +320,9 @@ void init_first_generation(){
 /* get which node to 换代  */
 int sel(){
 	double p=randd();
-	double sum=cur[SIZE-1].fitsum;
+	unsigned long sum=cur[SIZE-1].fitsum;
 	for(int i=0;i<SIZE;i++){
-		if(cur[i].fitsum/sum>p) return i;
+		if(cur[i].fitsum > sum * p) return i;
 	}
 }
 
@@ -328,13 +330,20 @@ int sel(){
 void tran(){
 	int i,j,k,pos;
     //找当前种群最优个体 
-    nodemin=cur[0];
+    nodemin.fitness=cur[0].fitness;
+    nodemin.fitsum=cur[0].fitsum;
+    memcpy(nodemin.index,cur[0].index,REGEXNUM*sizeof(int));
+
     for(i=1;i<SIZE;i++){
-    	if(cur[i].fitness < nodemin.fitness)
-    		nodemin=cur[i];   	
+    	if(cur[i].fitness < nodemin.fitness){
+			nodemin.fitness=cur[i].fitness;
+  			nodemin.fitsum=cur[i].fitsum;
+   			memcpy(nodemin.index,cur[i].index,REGEXNUM*sizeof(int));
+    	}
     }
 
     /* ******************************** */
+    //printf("*************************%lu\n",nodemin.fitness);
     fprintf(fp,"%lu\n",nodemin.fitness);
     /* ******************************** */
 
@@ -368,17 +377,29 @@ void tran(){
     	}
    	}
    	//找下一代的最差个体 
-  	nodemax=next[0],j=0;
+  	nodemax.fitness=next[0].fitness;
+  	nodemax.fitsum=next[0].fitsum;
+   	memcpy(nodemax.index,next[0].index,REGEXNUM*sizeof(int));
+
+  	j=0;
   	for(i=1;i<SIZE;i++){
   		if(next[i].fitness > nodemax.fitness){
-  			nodemax=next[i];
+			nodemax.fitness=cur[i].fitness;
+  			nodemax.fitsum=cur[i].fitsum;
+   			memcpy(nodemax.index,cur[i].index,REGEXNUM*sizeof(int));
   	  		j=i;
   	  	}
    	}
    	//用上一代的最优个体替换下一代的最差个体
-   	next[j]=nodemin;
+   	next[j].fitness=nodemin.fitness;
+  	next[j].fitsum=nodemin.fitsum;
+   	memcpy(next[j].index,nodemin.index,REGEXNUM*sizeof(int));
    
-   	memcpy(cur,next,sizeof(cur));
+    for(i=0;i<SIZE;i++){
+    	cur[i].fitness=next[i].fitness;
+  		cur[i].fitsum=next[i].fitsum;
+   		memcpy(cur[i].index,next[i].index,REGEXNUM*sizeof(int));
+    }
       
    	cal_fitness();
  }
@@ -395,11 +416,17 @@ void GA(){
 		tran();
 	}
 
-    nodemin=cur[0];
+    //找当前种群最优个体 
+    nodemin.fitness=cur[0].fitness;
+    nodemin.fitsum=cur[0].fitsum;
+    memcpy(nodemin.index,cur[0].index,REGEXNUM*sizeof(int));
 
     for(i=1;i<SIZE;i++){
-    	if(cur[i].fitness < nodemin.fitness)
-    		nodemin=cur[i];   	
+    	if(cur[i].fitness < nodemin.fitness){
+			nodemin.fitness=cur[i].fitness;
+  			nodemin.fitsum=cur[i].fitsum;
+   			memcpy(nodemin.index,cur[i].index,REGEXNUM*sizeof(int));
+    	}
     }
 
     gettimeofday(&end,NULL);
@@ -450,19 +477,19 @@ int main(int argc, char **argv){
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
 
-	//cal_total_DFA();
+	REGEXNUM = parser->get_regex_num(ruleset);
 
 	char str[100];
- 	sprintf(str,"record.txt");
-    if ((fp = fopen(str,"wt")) == NULL)
+ 	sprintf(str,"result_record.txt");
+ 	if ((fp = fopen(str,"wt")) == NULL)
     {
     	printf("open file failed!\n");
     	exit(1);
     }
 
-	if(init_data()==false){
-		exit(1);
-	}
+	//cal_total_DFA();
+
+	init_data();
 
 	srand((unsigned)time(0));
 

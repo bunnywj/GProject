@@ -4,23 +4,17 @@
 #include "dfa.h"
 #include <sys/time.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-
 int VERBOSE = 0;
 int DEBUG = 0;
-
-unsigned long **DFAdata;
-int GROUPNUM = 4;
-
 FILE *ruleset;
 regex_parser *parser;
+
+unsigned long **DFAdata;
 
 static void usage()
 {
 	fprintf(stderr,"\n");
-	fprintf(stderr, "Usage: regex --parse|-p <regex_file> -n <group_number> [Options]\n"); 
+	fprintf(stderr, "Usage: regex --parse|-p <regex_file> [Options]\n"); 
 	fprintf(stderr, "\nOptions:\n");
 	fprintf(stderr, "       --debug|-d    enhanced verbosity level\n");
 	fprintf(stderr, "\n");
@@ -66,15 +60,6 @@ static int parse_arguments(int argc, char **argv)
 			}
 			config.regex_file=argv[i];
 		}
-		else if (strcmp(argv[i], "-n") == 0){
-			i++;
-			if(i==argc){
-				fprintf(stderr,"Group number missing.\n");
-				return 0;
-			}
-			GROUPNUM = atoi(argv[i]); 
-			printf(">> to group into %d groups\n",GROUPNUM);
-		}
 		else {
 			fprintf(stderr,"Ignoring invalid option %s\n",argv[i]);
 		}
@@ -113,44 +98,10 @@ void check_file(char *filename, char *mode){
  */
 
 
-/* get a double random number between 0 and 1 */
-double randd()
-{
-  return (double)rand()/RAND_MAX;
-}
+/* *** */
+void cal_interaction(int remain[], int num){
 
-/* get a int random number between 1 and k */
-int randi(int k)
-{
-  return rand() % k + 1; 
-}
-
-static void cal_total_DFA(){
-	int num = parser->get_regex_num(ruleset);
-
-	int group[num+1];
-	int i;
-	
-	printf("test regex number is %d\n", num);
-
-	// Test examples
-	memset(group, 0, (num+1)*sizeof(int));	// clear the group
-
-	for(i=1;i<=num;i++){
-		group[i] = i;}	// index evaluation must start from group[1]
-
-	
-	group[0] = num;	// the count of regular expressions is filled in group[0]
-					// there are two regular expreesions in the group
-	unsigned long size = parser->parse_regex_group(ruleset, group);
-					// get the number of DFA states corresponding to the group
-	printf("put all regex together, total number of DFAs is :%lu\n\n", size);	
-}
-
-/* init the data of 2-2 interact DFA */
-void init_data(){
-
-	int num = parser->get_regex_num(ruleset);
+	//int num = parser->get_regex_num(ruleset);
 	
 	//memset(DFAdata, 0, (num+1) * (num+1) *sizeof(unsigned long));	// clear
 
@@ -182,8 +133,16 @@ void init_data(){
 			if(temp < DFAdata[i][i] + DFAdata[j][j])
 				DFAdata[i][j] = DFAdata[j][i] =0;
 			else
-				DFAdata[i][j] = DFAdata[j][i] = temp - DFAdata[i][i] - DFAdata[j][j];
+				DFAdata[i][j] = DFAdata[j][i] = 1;
 		}
+	}
+
+	for(i=1;i<=num;i++){
+		for(j=1;j<=num;j++){
+			DFAdata[i][0] += DFAdata[i][j];
+		}
+		DFAdata[i][0] -= DFAdata[i][i];
+		DFAdata[0][i] = DFAdata[i][0];
 	}
 
 	for(i=0;i<=num;i++){
@@ -194,124 +153,92 @@ void init_data(){
 	}
 }
 
-/* cal the approximate sum of DFA of a group using data of 2-2 matrix */
-unsigned long cal_approximate_group_DFA(int group[], int num){
-	int i,j;
-	unsigned long fitness = 0;
+void init_data(){
+	int num = parser->get_regex_num(ruleset);
+	int group[num];
+
+	int i;
 	for(i=0;i<num;i++){
-		for(j=i+1;j<num;j++){
-			fitness += DFAdata[group[i]][group[j]];
-		}
-	}
-	return fitness;
+		group[i] = i;}
+
+	cal_interaction(group,num);
 }
 
-/* cal the approximate sum of DFA of a group using data of 2-2 matrix */
-unsigned long cal_approximate_node_DFA(int index[], int REGEXNUM, int GROUPNUM){
-	
+/* init the data of 2-2 interact DFA */
+void fang_yu(int num, unsigned long DFAlimit){
+	//init_data();
 	int i,j,k;
-	int count[GROUPNUM+1];
-	int group[GROUPNUM+1][REGEXNUM+1];
-	unsigned long size = 0;
-	
-	memset(count, 0, (GROUPNUM+1)*sizeof(int));
-	memset(group, 0, (GROUPNUM+1)*(REGEXNUM+1)*sizeof(int));
+	int min,tempsum;
+	unsigned long size;
+	int *NG,*tempNG;
+	NG = (int *) malloc(sizeof(int )*(num+1));
+	tempNG = (int *) malloc(sizeof(int )*(num+1));
+	memset(NG, 0, (num+1)*sizeof(int));
+	memset(tempNG, 0, (num+1)*sizeof(int));
 
-	for(k=1;k<=GROUPNUM;k++){
+	bool istaken,isfirst;
 
-		for(j=0;j<REGEXNUM;j++){				
-			if(index[j] == k){
-				group[k][count[k]] = j + 1;				
-				count[k] = count[k] + 1;
-			}
+	min = DFAdata[1][0];
+
+	j=0;
+	for(i=2;i<num;i++){
+		if(DFAdata[i][0]<min){
+			min=DFAdata[i][0];
+			j=i;
 		}
-		size += cal_approximate_group_DFA(group[k],count[k]);
 	}
-	//printf("size = %lu\n", size);
-	return size;
-}
+	NG[0]++;
+	NG[NG[0]]=j;
 
- /* cal the accurate sum of DFA of node */
-unsigned long cal_accurate_DFA(int index[], int REGEXNUM, int GROUPNUM){
+	memcpy(tempNG,NG,sizeof(int )*(num+1));
 
-	int i,j,k;
-	int count[GROUPNUM+1];
-	int group[GROUPNUM+1][REGEXNUM+1];
-	unsigned long size = 0;
-	
-	memset(count, 0, (GROUPNUM+1)*sizeof(int));
-	memset(group, 0, (GROUPNUM+1)*(REGEXNUM+1)*sizeof(int));
+	for(int ii=1;ii<=10;ii++){
 
-	for(k=1;k<=GROUPNUM;k++){
-
-		for(j=0;j<REGEXNUM;j++){				
-			if(index[j] == k){
-				count[k] = count[k] + 1;
-				group[k][count[k]] = j + 1;
+		min = 0;
+		
+		isfirst = true;
+		for(i=1;i<=num;i++){
+			istaken = false;
+			
+			tempsum = 0;
+			for(j=1;j<=NG[0];j++){
+				if(i == NG[j]) istaken =true;
 			}
-		}
 
-		group[k][0] = count[k];
-		size += parser->parse_regex_group(ruleset, group[k]);
-	}
-
-	return size;
-}
-
-void GRELS(int REGEXNUM, int GROUPNUM){
-
-	struct timeval start,end;
-	gettimeofday(&start,NULL);
-	int i,j;
-	int index[REGEXNUM];
-	int tempindex[REGEXNUM];
-	unsigned long min,temp;
-	bool nochange;
-
-	for(j=0;j<REGEXNUM;j++){
-		index[j] =randi(GROUPNUM) ;
-		printf("%d ", index[j]);
-	}
-	printf("\n");
-
-	min = cal_approximate_node_DFA(index,REGEXNUM,GROUPNUM);
-	memcpy(tempindex,index,REGEXNUM *sizeof(int));
-
-	while(true){
-		nochange = true;
-		for(i=0;i<REGEXNUM;i++){
-			for(j=1;j<=GROUPNUM;j++){
-				index[i] = j;
-				temp = cal_approximate_node_DFA(index,REGEXNUM,GROUPNUM);
-				if(temp < min){
-					min = temp;
-					memcpy(tempindex,index,REGEXNUM *sizeof(int));
-					nochange = false ;
-					printf(">>min = %lu\n", min);
+			if(!istaken){
+				for(j=1;j<=NG[0];j++){
+					tempsum += DFAdata[i][NG[j]];
 				}
+
+				if(isfirst){
+					min = tempsum;
+					k = i;
+					isfirst = false;
+				}
+				else{
+					if(tempsum < min){
+						min = tempsum;
+						k = i;
+					}
+				}			
 			}
 		}
-		if((i>=REGEXNUM)&&nochange)
-			break;
+
+		printf("k = %d\n", k);
+		NG[0]++;
+		NG[NG[0]]=k;
+
+		for(j=1;j<=NG[0];j++){
+			printf("%d ", NG[j]);
+		}
+		size = parser->parse_regex_group(ruleset, NG);
+		printf("size = %lu\n\n", size);
+
 	}
 
-	gettimeofday(&end,NULL);
 
-	printf("best group is\n");
-	for(i=0;i<REGEXNUM;i++){
-		printf("%d ", tempindex[i]);
-	}
-	printf("\n");
-
-	printf("approximate minimal DFA is %lu\n",min+DFAdata[0][0]);
-	printf("accurate minimal DFA is %lu\n",cal_accurate_DFA(tempindex,REGEXNUM,GROUPNUM));
-
-	
-	printf(">> GRELS time: %ldms\n",
-			(end.tv_sec-start.tv_sec)*1000+(end.tv_usec-start.tv_usec)/1000);
 
 }
-
 /*
  *  MAIN - entry point
  */
@@ -341,15 +268,13 @@ int main(int argc, char **argv){
 	gettimeofday(&start,NULL);
 	/* BEGIN USER CODE */
 
-	srand((unsigned)time(0));
-
-	//cal_total_DFA(ruleset, parser);
+	//cal_total_DFA();
 
 	init_data();
 
-	int REGEXNUM = parser->get_regex_num(ruleset);
+	int num = parser->get_regex_num(ruleset);
 
-	GRELS(REGEXNUM,GROUPNUM);
+	fang_yu(num,100);
 
 	/* END USER CODE */
 	gettimeofday(&end,NULL);
@@ -364,5 +289,4 @@ int main(int argc, char **argv){
 		
 	return 0;
 }
-
 
