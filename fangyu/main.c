@@ -8,13 +8,16 @@ int VERBOSE = 0;
 int DEBUG = 0;
 FILE *ruleset;
 regex_parser *parser;
+int REGEXNUM;
+int THRESHOLD;
+int groupcnt = 0;
 
 unsigned long **DFAdata;
 
 static void usage()
 {
 	fprintf(stderr,"\n");
-	fprintf(stderr, "Usage: regex --parse|-p <regex_file> [Options]\n"); 
+	fprintf(stderr, "Usage: regex --parse|-p <regex_file> -t <DFA limit> [Options]\n"); 
 	fprintf(stderr, "\nOptions:\n");
 	fprintf(stderr, "       --debug|-d    enhanced verbosity level\n");
 	fprintf(stderr, "\n");
@@ -59,6 +62,15 @@ static int parse_arguments(int argc, char **argv)
 				return 0;
 			}
 			config.regex_file=argv[i];
+		}
+		else if (strcmp(argv[i], "-t") == 0){
+			i++;
+			if(i==argc){
+				fprintf(stderr,"DFA limit missing.\n");
+				return 0;
+			}
+			THRESHOLD = atoi(argv[i]); 
+			printf(">> DFA limit is %d\n",THRESHOLD);
 		}
 		else {
 			fprintf(stderr,"Ignoring invalid option %s\n",argv[i]);
@@ -108,10 +120,9 @@ void cal_interaction(int remain[], int num){
 	int i,j;
 	unsigned long temp = 0;
 
-	DFAdata = (unsigned long **) malloc(sizeof(unsigned long *)*(num+1));
-	for(i=0 ; i < num+1 ; i++){
-		DFAdata[i]=(unsigned long *) malloc(sizeof(unsigned long )*(num+1));
-		memset(DFAdata[i], 0, (num+1) *sizeof(unsigned long));	// clear
+	for(i=0 ; i < REGEXNUM+1 ; i++){
+		//DFAdata[i]=(unsigned long *) malloc(sizeof(unsigned long )*(num+1));
+		memset(DFAdata[i], 0, (REGEXNUM+1) *sizeof(unsigned long));	// clear
 	}
 
 	int group[3];
@@ -119,16 +130,16 @@ void cal_interaction(int remain[], int num){
 
 	group[0] = 1;
 	for(i=1;i<=num;i++){
-		group[1]=i;
+		group[1]=remain[i-1];
 		DFAdata[i][i] =  parser->parse_regex_group(ruleset, group);
 		DFAdata[0][0] += DFAdata[i][i];
 	}
 
 	group[0] = 2;
 	for(i=2;i<=num;i++){
-		group[1]=i;
+		group[1]=remain[i-1];
 		for(j=1;j<i;j++){
-			group[2]=j;
+			group[2]=remain[j-1];
 			temp =  parser->parse_regex_group(ruleset, group) ;
 			if(temp < DFAdata[i][i] + DFAdata[j][j])
 				DFAdata[i][j] = DFAdata[j][i] =0;
@@ -145,42 +156,59 @@ void cal_interaction(int remain[], int num){
 		DFAdata[0][i] = DFAdata[i][0];
 	}
 
-	for(i=0;i<=num;i++){
-		for(j=0;j<=num;j++){
-			printf("%lu ",DFAdata[i][j]);
-		}
-		printf("\n");
-	}
+	// for(i=0;i<=num;i++){
+	// 	for(j=0;j<=num;j++){
+	// 		printf("%lu ",DFAdata[i][j]);
+	// 	}
+	// 	printf("\n");
+	// }
 }
 
-void init_data(){
-	int num = parser->get_regex_num(ruleset);
-	int group[num];
 
-	int i;
-	for(i=0;i<num;i++){
-		group[i] = i;}
-
-	cal_interaction(group,num);
-}
-
-/* init the data of 2-2 interact DFA */
-void fang_yu(int num, unsigned long DFAlimit){
+void fang_yu(int remain[], int num, unsigned long DFAlimit){
 	//init_data();
+
 	int i,j,k;
+
+	cal_interaction(remain,num);
+
+	// printf("\nnow the group is \n");
+	// for(j=0;j<num;j++){
+	// 	printf("%d ", remain[j]);
+	// }	
+
+	//printf("\n >>>>>>>>>>>>> a new group \n");
+
 	int min,tempsum;
-	unsigned long size;
+	int remainnum = num;
+	int count = num;
+	unsigned long size=0, tempsize=0;
 	int *NG,*tempNG;
+	int *tempremain, *tempgroup;
+	bool istaken,isfirst;
+
+	if(num == 1){
+		groupcnt++;
+		printf("\ngroup%d is \n",groupcnt);
+		printf("%lu\n",remain[0]);
+		printf("size = %lu\n",DFAdata[0][0]);
+		return;
+	}
+
 	NG = (int *) malloc(sizeof(int )*(num+1));
 	tempNG = (int *) malloc(sizeof(int )*(num+1));
+	tempgroup = (int *) malloc(sizeof(int )*(num+1));
+	tempremain = (int *) malloc(sizeof(int )*num);
+
 	memset(NG, 0, (num+1)*sizeof(int));
 	memset(tempNG, 0, (num+1)*sizeof(int));
+	memset(tempgroup, 0, (num+1)*sizeof(int));
+	memset(tempremain, 0, num*sizeof(int));
 
-	bool istaken,isfirst;
 
 	min = DFAdata[1][0];
 
-	j=0;
+	j=1;
 	for(i=2;i<num;i++){
 		if(DFAdata[i][0]<min){
 			min=DFAdata[i][0];
@@ -190,9 +218,11 @@ void fang_yu(int num, unsigned long DFAlimit){
 	NG[0]++;
 	NG[NG[0]]=j;
 
-	memcpy(tempNG,NG,sizeof(int )*(num+1));
+	count--; 
 
-	for(int ii=1;ii<=10;ii++){
+	memcpy(tempNG,NG,(num+1)*sizeof(int));
+
+	while(true){
 
 		min = 0;
 		
@@ -201,13 +231,13 @@ void fang_yu(int num, unsigned long DFAlimit){
 			istaken = false;
 			
 			tempsum = 0;
-			for(j=1;j<=NG[0];j++){
-				if(i == NG[j]) istaken =true;
+			for(j=1;j<=tempNG[0];j++){
+				if(i == tempNG[j]) istaken =true;
 			}
 
 			if(!istaken){
-				for(j=1;j<=NG[0];j++){
-					tempsum += DFAdata[i][NG[j]];
+				for(j=1;j<=tempNG[0];j++){
+					tempsum += DFAdata[i][tempNG[j]];
 				}
 
 				if(isfirst){
@@ -224,15 +254,71 @@ void fang_yu(int num, unsigned long DFAlimit){
 			}
 		}
 
-		printf("k = %d\n", k);
-		NG[0]++;
-		NG[NG[0]]=k;
+		//printf("k = %d\n", k);
+		tempNG[0]++;
 
-		for(j=1;j<=NG[0];j++){
-			printf("%d ", NG[j]);
+		tempNG[tempNG[0]]=k;
+
+		tempgroup[0] = tempNG[0];
+		for(j=1;j<=tempNG[0];j++){
+			tempgroup[j] = remain[tempNG[j]-1];
+			//printf(">>%d ", tempgroup[j]);
 		}
-		size = parser->parse_regex_group(ruleset, NG);
-		printf("size = %lu\n\n", size);
+		
+		tempsize = parser->parse_regex_group(ruleset, tempgroup);
+		//printf("size = %lu\n", size);
+	
+		if(tempsize <= DFAlimit){
+			size = tempsize;
+			memcpy(NG,tempNG,(num+1)*sizeof(int));
+			count--;
+			// printf("\nnow NG is \n");
+			// for(j=1;j<=NG[0];j++){
+			// 	printf("%d ", NG[j]);
+			// }			
+			// printf("size = %lu\n", size);
+			if(count<=0) {
+				groupcnt++;
+				printf("\ngroup%d is \n",groupcnt);
+				for(j=1;j<=NG[0];j++){
+					printf("%d ", remain[NG[j]-1]);
+				}
+				printf("\nsize = %lu\n",size);
+				free(NG);
+				free(tempNG);
+				free(tempgroup);
+				free(tempremain);
+				return;
+			}
+		}
+		else{
+			memcpy(tempremain,remain,num*sizeof(int));
+			for(j=1;j<=NG[0];j++){
+				for(i=0;i<num;i++){
+					if(tempremain[i] == remain[NG[j]-1]){
+						for(k=i;k<num;k++){
+							tempremain[k]=tempremain[k+1];
+						}
+						remainnum--;
+					}
+				}
+			}
+			groupcnt++;
+			printf("\ngroup%d is \n",groupcnt);
+			for(j=1;j<=NG[0];j++){
+				printf("%d ", remain[NG[j]-1]);
+			}
+			printf("\nsize = %lu\n",size);
+			// printf("remainnum is %d\n",remainnum);
+			// printf("\n >>>>>>>>>>>>> a new group \n");
+			fang_yu(tempremain, remainnum, DFAlimit);
+
+			free(NG);
+			free(tempNG);
+			free(tempgroup);
+			free(tempremain);
+			break;
+		}
 
 	}
 
@@ -270,11 +356,21 @@ int main(int argc, char **argv){
 
 	//cal_total_DFA();
 
-	init_data();
+	REGEXNUM = parser->get_regex_num(ruleset);
 
-	int num = parser->get_regex_num(ruleset);
+	int i;
+	int group[REGEXNUM];
 
-	fang_yu(num,100);
+	DFAdata = (unsigned long **) malloc(sizeof(unsigned long *)*(REGEXNUM+1));
+	for(i=0 ; i < REGEXNUM+1 ; i++){
+		DFAdata[i]=(unsigned long *) malloc(sizeof(unsigned long )*(REGEXNUM+1));
+		memset(DFAdata[i], 0, (REGEXNUM+1) *sizeof(unsigned long));	// clear
+	}
+
+	for(i=0;i<REGEXNUM;i++){
+		group[i] = i+1;}
+
+	fang_yu(group,REGEXNUM,THRESHOLD);
 
 	/* END USER CODE */
 	gettimeofday(&end,NULL);

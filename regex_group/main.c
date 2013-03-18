@@ -487,15 +487,15 @@ int main(int argc, char **argv){
     	exit(1);
     }
 
-	//cal_total_DFA();
+	cal_total_DFA();
 
-	init_data();
+	// init_data();
 
-	srand((unsigned)time(0));
+	// srand((unsigned)time(0));
 
-	init_first_generation();
+	// init_first_generation();
 
-	GA();
+	// GA();
 
 	fclose(fp);
 	/* END USER CODE */
